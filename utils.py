@@ -40,12 +40,12 @@ async def query_loop(platform: int):
     start = datetime.now().timestamp()
     while True:
         try:
-            logger.info(f"{platform_dict.get(platform, '')}竞技场推送开始")
+            logger.debug(f"{platform_dict.get(platform, '')}竞技场推送开始")
             binds = await pcr_sqla.get_bind(platform)
             if sleep_time := await query_all(binds, platform, query_rank):
                 await asyncio.sleep(sleep_time)
             await asyncio.sleep(1)
-            logger.info(f"{platform_dict.get(platform, '')}竞技场推送结束，用时{int(datetime.now().timestamp()-start)-1}")
+            logger.debug(f"{platform_dict.get(platform, '')}竞技场推送结束，用时{int(datetime.now().timestamp()-start)-1}")
             start = datetime.now().timestamp()
             await pcr_sqla.insert_history(jjc_log[platform])
             jjc_log[platform].clear()
