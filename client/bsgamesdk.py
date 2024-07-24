@@ -3,8 +3,9 @@ import json
 import time
 import hashlib
 from . import rsacr
+from asyncio import Lock
 import urllib
-from nonebot import logger
+from nonebot import logger, on_command, get_bot
 import httpx
 from json import load
 from os.path import join, dirname
@@ -22,7 +23,7 @@ captcha_header = {"Content-Type": "application/json",
 gt_wait = 90
 
 # 手动过码网站地址
-manual_captch_site = "https://yousite.com"
+manual_captch_site = "https://cc004.github.io/geetest/geetest.html"
 
 
 async def sendpost(url, data):
@@ -180,16 +181,37 @@ async def manual_captch_listener(user_id:str):
                     res = response.json()
                     return res["validate"]
 
+captcha_lck = Lock()
+acfirst = False
+validate = None
+
 async def manual_captch(challenge:str, gt:str, user_id:str, qqid:int, bili_account):
-    url = f"{manual_captch_site}/?captcha_type=1&challenge={challenge}&gt={gt}&userid={user_id}&gs=1"
+    global acfirst
+    if not acfirst:
+        await captcha_lck.acquire()
+        acfirst = True
+        
+    url = f"{manual_captch_site}?captcha_type=1&challenge={challenge}&gt={gt}&userid={user_id}&gs=1"
+    print(url)
+    print(f'{manual_captch_site}api/block?userid={user_id}')
     await private_send(qqid, f'pcr账号{bili_account}登录触发验证码，请在{gt_wait}秒内完成以下链接中的验证内容。')
     await private_send(qqid, url)
     
-    try:
-        return (challenge, user_id, await asyncio.wait_for(manual_captch_listener(user_id), gt_wait))
-    except asyncio.TimeoutError:
-        await private_send(qqid, "手动过码获取结果超时")
-        raise RuntimeError("手动过码获取结果超时")
-    except Exception as e:
-        await private_send(qqid, f'手动过码获取结果异常：{e}')
-        raise e
+    # try:
+    #     return (challenge, user_id, await asyncio.wait_for(manual_captch_listener(user_id), gt_wait))
+    # except asyncio.TimeoutError:
+    #     await private_send(qqid, "手动过码获取结果超时")
+    #     raise RuntimeError("手动过码获取结果超时")
+    # except Exception as e:
+    #     await private_send(qqid, f'手动过码获取结果异常：{e}')
+    #     raise e
+    await captcha_lck.acquire()
+    return (challenge, user_id, validate)
+
+
+@on_command('/pcrval')
+async def validate(session):
+    global binds, lck, validate
+    if session.ctx['user_id'] == hoshino.config.SUPERUSERS[0]:
+        validate = session.ctx['message'].extract_plain_text().strip()[8:]
+        captcha_lck.release()
